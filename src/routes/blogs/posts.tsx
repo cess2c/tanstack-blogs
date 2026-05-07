@@ -44,11 +44,7 @@ export const Route = createFileRoute('/blogs/posts')({
 })
 
 const handleDelete = async (content: blogInfo) => {
-  window.confirm('Are you sure you want to delete this post?') && (
-    <div className="text-red-500">
-      <p>This action cannot be undone.</p>
-    </div>
-  )
+  if (!window.confirm('Are you sure you want to delete this post?')) return
   await deletePost({
     data: { id: content.id, title: content.title, content: content.content },
   })
