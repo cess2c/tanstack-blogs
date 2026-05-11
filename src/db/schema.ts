@@ -5,6 +5,7 @@ export const users = pgTable('users', {
   name: text('name').notNull(),
   email: text('email').notNull(),
   password: text('password').notNull(),
+  role: text('role').notNull().default('user'),
   createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp({ withTimezone: true })
     .defaultNow()
@@ -22,19 +23,6 @@ export const blogs = pgTable('blogs', {
     .notNull()
     .$onUpdate(() => new Date()),
 })
-
-// export const userBlogs = pgTable('user_blogs', {
-//   id: uuid('id').primaryKey().defaultRandom(),
-//   userId: uuid('user_id')
-//     .notNull()
-//     .references(() => users.id),
-//   blogsId: uuid('blogs_id').references(() => blogs.id),
-//   createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
-//   updatedAt: timestamp({ withTimezone: true })
-//     .defaultNow()
-//     .notNull()
-//     .$onUpdate(() => new Date()),
-// })
 
 export const userBlogs = pgTable('user_blogs', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -24,6 +24,7 @@ import { updateFormSchema } from '#/components/postForm'
 import { eq } from 'drizzle-orm'
 import { blogs, userBlogs } from '#/db/schema'
 import { getSession } from '@/db/server'
+import z from 'zod'
 
 type blogInfo = {
   id: string
@@ -32,13 +33,20 @@ type blogInfo = {
   createdAt: Date
   updatedAt: Date
 }
+const userInfo = z.object({
+  id: z.string().uuid(),
+  role: z.string(),
+})
 
 const getBlogsByUserId = createServerFn({ method: 'GET' })
-  .inputValidator((data: string) => data)
+  .inputValidator(userInfo)
   .handler(async ({ data: data }) => {
-    const userBlog = await db.query.userBlogs.findMany({
-      where: eq(userBlogs.userId, data),
-    })
+    var userBlog = []
+    data.role === 'admin'
+      ? (userBlog = await db.query.userBlogs.findMany())
+      : (userBlog = await db.query.userBlogs.findMany({
+          where: eq(userBlogs.userId, data.id),
+        }))
     if (!userBlog) throw []
     return userBlog
   })
@@ -58,7 +66,7 @@ export const Route = createFileRoute('/blogs/posts')({
   loader: async () => {
     const session = await getSession()
     if (!session || !session.id) throw redirect({ to: '/login' })
-    const blogsByUserId = await getBlogsByUserId({ data: session.id })
+    const blogsByUserId = await getBlogsByUserId({ data: session })
     return fetchBlogs({ data: blogsByUserId })
   },
 })
@@ -164,20 +172,21 @@ function RenderBlog({
             </CardHeader>
             <CardFooter>
               {!mode ? (
-                <Button className="w-full">
+                <Button className="w-full" variant="secondary">
                   <Link to="/blogs/$id" params={{ id: content.id }}>
                     View Event
                   </Link>
                 </Button>
               ) : (
                 <div className="grid grid-cols-2 gap-2 w-full">
-                  <Button className="w-full">
+                  <Button className="w-full" variant="outline">
                     <Link to="/blogs/$id/edit" params={{ id: content.id }}>
                       Update
                     </Link>
                   </Button>
                   <Button
                     className="w-full"
+                    variant="destructive"
                     onClick={() => handleDelete(content)}
                   >
                     Delete
