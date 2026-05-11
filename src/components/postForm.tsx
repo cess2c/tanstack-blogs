@@ -1,11 +1,16 @@
 import { db } from '#/db'
-import { blogs } from '#/db/schema'
-import { useNavigate } from '@tanstack/react-router'
+import { blogs, userBlogs } from '#/db/schema'
+import { redirect, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { eq } from 'drizzle-orm'
 import z from 'zod'
 import { useForm, useStore } from '@tanstack/react-form-start'
+import { getSession } from '@/db/server'
 
+const userBlogSchema = z.object({
+  userId: z.string().uuid(),
+  blogId: z.string().uuid(),
+})
 const formSchema = z.object({
   title: z.string(),
   content: z.string(),
@@ -14,11 +19,25 @@ const formSchema = z.object({
 export const updateFormSchema = formSchema.extend({
   id: z.string().uuid(),
 })
-
+const addUserBlog = createServerFn({ method: 'POST' })
+  .inputValidator(userBlogSchema)
+  .handler(async ({ data }) => {
+    await db
+      .insert(userBlogs)
+      .values({
+        userId: data.userId,
+        blogsId: data.blogId,
+      })
+      .returning()
+  })
 const addPost = createServerFn({ method: 'POST' })
   .inputValidator(formSchema)
   .handler(async ({ data }) => {
-    await db.insert(blogs).values({ ...data })
+    const blogspost = await db
+      .insert(blogs)
+      .values({ ...data })
+      .returning()
+    return blogspost[0].id
   })
 
 const updatePost = createServerFn({ method: 'POST' })
@@ -29,7 +48,11 @@ const updatePost = createServerFn({ method: 'POST' })
       .set({ ...data })
       .where(eq(blogs.id, data.id))
   })
-
+const fetchUserId = async () => {
+  const session = await getSession()
+  if (!session || !session.id) throw redirect({ to: '/login' })
+  return session.id
+}
 export function PostForm({
   blog,
 }: {
@@ -51,9 +74,11 @@ export function PostForm({
         if (blog) {
           await updatePost({ data: { id: blog.id, ...value } })
         } else {
-          await addPost({ data: value })
+          const postId = await addPost({ data: value })
+          const userId = await fetchUserId()
+          await addUserBlog({ data: { userId: userId, blogId: postId } })
         }
-        navigate({ to: '/' })
+        navigate({ to: '/blogs/posts' })
       } catch (error) {
         console.log(error)
       }
@@ -127,4 +152,7 @@ export function PostForm({
       </button>
     </form>
   )
+}
+function fetchUserBlogsId() {
+  throw new Error('Function not implemented.')
 }

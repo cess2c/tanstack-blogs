@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { db } from '#/db'
 import { Header } from '#/components/header'
 import { Badge } from '#/components/ui/badge'
@@ -21,8 +21,9 @@ import {
 } from '@/components/ui/card'
 import { useState } from 'react'
 import { updateFormSchema } from '#/components/postForm'
-import { blogs } from '#/db/schema'
 import { eq } from 'drizzle-orm'
+import { blogs, userBlogs } from '#/db/schema'
+import { getSession } from '@/db/server'
 
 type blogInfo = {
   id: string
@@ -32,24 +33,44 @@ type blogInfo = {
   updatedAt: Date
 }
 
-const serverLoader = createServerFn({ method: 'GET' }).handler(() => {
-  return db.query.blogs.findMany()
-})
+const getBlogsByUserId = createServerFn({ method: 'GET' })
+  .inputValidator((data: string) => data)
+  .handler(async ({ data: data }) => {
+    const userBlog = await db.query.userBlogs.findMany({
+      where: eq(userBlogs.userId, data),
+    })
+    if (!userBlog) throw []
+    return userBlog
+  })
+
+const fetchBlogs = createServerFn({ method: 'GET' })
+  .inputValidator((data: Array<any>) => data)
+  .handler(async ({ data }) => {
+    const blogsById = data.map((blog) => blog.blogsId)
+    const posts = await db.query.blogs.findMany({
+      where: (blogs, { inArray }) => inArray(blogs.id, blogsById),
+    })
+    return posts
+  })
 
 export const Route = createFileRoute('/blogs/posts')({
   component: Blogs,
-  loader: () => {
-    return serverLoader()
+  loader: async () => {
+    const session = await getSession()
+    if (!session || !session.id) throw redirect({ to: '/login' })
+    const blogsByUserId = await getBlogsByUserId({ data: session.id })
+    return fetchBlogs({ data: blogsByUserId })
   },
 })
 
 const handleDelete = async (content: blogInfo) => {
   if (!window.confirm('Are you sure you want to delete this post?')) return
   await deletePost({
-    data: { id: content.id, title: content.title, content: content.content },
+    data: { ...content },
   })
   window.location.reload()
 }
+
 const deletePost = createServerFn({ method: 'POST' })
   .inputValidator(updateFormSchema)
   .handler(async ({ data }) => {
@@ -126,6 +147,7 @@ function RenderBlog({
       </Empty>
     )
   }
+
   return (
     <ul className="grid grid-cols-3 gap-4">
       {posts.map((content) => (
